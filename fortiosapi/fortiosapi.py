@@ -22,7 +22,7 @@
 # integration of Fortgate configuration using the restapi
 #
 # A Python module to abstract configuration using FortiOS REST API
-#
+# now with tokenlogin
 ###################################################################
 
 import copy
@@ -289,14 +289,18 @@ class FortiOSAPI:
         # set the default at 12 see request doc for details http://docs.python-requests.org/en/master/user/advanced/
         self.timeout = timeout
 
-        LOG.debug("host is %s", host)
-        resp_lic = self.monitor("system", "status", vdom=vdom)
+        resp_lic = self.monitor("license", "status")
         LOG.debug("response system/status : %s", resp_lic)
         try:
             self._fortiversion = resp_lic["version"]
-        except TypeError:
-            raise NotLogged
-        return True
+            return True
+        except KeyError:
+            if resp_lic["status"] == "success":
+                self._logged = True
+                return True
+            else:
+                self._logged = False
+                raise NotLogged
 
     def get_version(self):
         """
@@ -485,7 +489,7 @@ class FortiOSAPI:
             url = self.cmdb_url(path, name, vdom=vdom) + "&action=schema"
 
         res = self._session.get(url, timeout=self.timeout)
-        if res.status_code is 200:
+        if res.status_code == 200:
             if vdom == "global":
                 return json.loads(res.content.decode("utf-8"))[0]["results"]
             else:
